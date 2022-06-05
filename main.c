@@ -1,4 +1,5 @@
 #include <arpa/inet.h>
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -16,7 +17,6 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <unistd.h>
-#include <dirent.h>
 
 #define SERVER_PORT 3000
 #define MAX_LINE 4096
@@ -126,8 +126,6 @@ int main(void) {
     exit(EXIT_FAILURE);
   }
 
-  int visited = 0;
-
   while (1) {
     printf("Waiting for connection on port %d\n", SERVER_PORT);
     fflush(stdout);
@@ -149,53 +147,59 @@ int main(void) {
     fgets(recvline, MAX_LINE - 1, stream);
     sscanf(recvline, "%s %s %s\n", method, uri, version);
 
-    char *found = strchr(recvline, '/');
-    if (found) {
-      char *pathend = strchr(found, ' ');
+    static char moduri[MAX_PROP_LEN];
 
-      if (pathend) {
-        int len = pathend - found;
+    memset(moduri, 0, MAX_PROP_LEN);
+    strcpy(moduri, "./" EXPOSED_FOLDER);
+    strcat(moduri, uri);
 
-        if (len + strlen(EXPOSED_FOLDER) < MAX_PROP_LEN) {
-          strcpy(uri, "./" EXPOSED_FOLDER);
-          strncat(uri, found, len);
-          printf("%s\n", uri);
+    int statuscode = 200;
 
-          int statuscode = 200;
-
-          // check if uri is a directory
-          DIR *dir = opendir(uri);
-          if (dir) {
-            if(uri[strlen(uri) - 1] != '/')
-              strcat(uri, "/");
-
-            strcat(uri, "index.html");
-          }
-
-          if (stat(uri, &sbuf) < 0) {
-            statuscode = 404;
-            fprintf(stderr, "[ERROR] 404 File %s does not exist\n", uri);
-            memset(uri, 0, MAX_PROP_LEN);
-            strcpy(uri, "./public/404.html");
-          }
-
-          fprintf(stream, "HTTP/1.1 %d OK\n", statuscode);
-          fprintf(stream, "Server: serverfromscratch\n");
-          fprintf(stream, "Content-Type: text/html\n");
-          fprintf(stream, "\r\n\r\n");
-          fflush(stream);
-
-          int fd = open(uri, O_RDONLY);
-          void *p = mmap(0, sbuf.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-          fwrite(p, 1, sbuf.st_size, stream);
-          munmap(p, sbuf.st_size);
-
-          fclose(stream);
-        } else {
-          fprintf(stderr, "[ERROR] URL with length %d is not allowed\n", len);
-        }
+    // check if file or directory does exist
+    if (stat(moduri, &sbuf) < 0) {
+      // if it doesn't try with an html extension
+      memset(moduri, 0, MAX_PROP_LEN);
+      strcpy(moduri, "./" EXPOSED_FOLDER);
+      strcat(moduri, uri);
+      strcat(moduri, ".html");
+    } else {
+      // if it does check if is not a file
+      if (!S_ISREG(sbuf.st_mode)) {
+        // if it is not a directory append an index.html at the end
+        if (moduri[strlen(moduri) - 1] != '/')
+          strcat(moduri, "/");
+        strcat(moduri, "index.html");
       }
     }
+
+    // check again whether the file exists
+    if (stat(moduri, &sbuf) < 0) {
+      // if it doesn't change the path to the 404 page
+      statuscode = 404;
+      fprintf(stderr, "[ERROR] 404 File %s does not exist\n", moduri);
+      memset(moduri, 0, MAX_PROP_LEN);
+      strcpy(moduri, "./" EXPOSED_FOLDER);
+      strcat(moduri, "/404.html");
+    }
+
+    // check if the 404 page exists if not exit the program
+    if (stat(moduri, &sbuf) < 0) {
+      fprintf(stderr, "[ERROR] 404 page does not exist\n");
+      exit(EXIT_FAILURE);
+    }
+
+    fprintf(stream, "HTTP/1.1 %d OK\n", statuscode);
+    fprintf(stream, "Server: serverfromscratch\n");
+    fprintf(stream, "Content-Type: text/html\n");
+    fprintf(stream, "\r\n\r\n");
+    fflush(stream);
+
+    int fd = open(moduri, O_RDONLY);
+    void *p = mmap(0, sbuf.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    fwrite(p, 1, sbuf.st_size, stream);
+    munmap(p, sbuf.st_size);
+
+    fclose(stream);
 
     close(fdclient);
   }
