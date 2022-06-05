@@ -92,15 +92,15 @@ int main(void) {
 
   while (1) {
     fflush(stdout);
-    struct sockaddr clientaddr;
+    struct sockaddr_in clientaddr;
     socklen_t clientaddr_len;
 
-    fdclient = accept(fdserver, &clientaddr, &clientaddr_len);
+    fdclient =
+        accept(fdserver, (struct sockaddr *)&clientaddr, &clientaddr_len);
 
-    // if it is ipv4
-    if (clientaddr.sa_family == AF_INET) {
-      struct sockaddr_in *addrin = (struct sockaddr_in*)&clientaddr;
-      char *ip = inet_ntoa(addrin->sin_addr);
+    // check if ip address is ipv4
+    if (clientaddr.sin_family == AF_INET) {
+      char *ip = inet_ntoa(clientaddr.sin_addr);
       printf("Incoming request from %s\n", ip);
     }
 
