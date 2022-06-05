@@ -1,5 +1,6 @@
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <netdb.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -85,8 +86,8 @@ char *str_replace(char *orig, char *rep, char *with) {
 
 // Parts stolen from https://www.youtube.com/watch?v=esXw4bdaZkc
 int main(void) {
-  int listenfd;
-  int connfd;
+  int fdserver;
+  int fdclient;
   int n;
   const char *resheader = ""
                           "HTTP/1.1 200 OK\n"
@@ -98,8 +99,10 @@ int main(void) {
   uint8_t buff[MAX_LINE + 1];
   uint8_t recvline[MAX_LINE + 1];
 
-  if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    printf("Error initializing socket.");
+  fdserver = socket(AF_INET, SOCK_STREAM, 0);
+
+  if (!fdserver) {
+    fprintf(stderr, "[ERROR] Failed to initialize socket: %m\n");
     exit(EXIT_FAILURE);
   }
 
@@ -108,13 +111,13 @@ int main(void) {
   servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
   servaddr.sin_port = htons(SERVER_PORT);
 
-  if ((bind(listenfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)) {
-    printf("Error while binding socket.");
+  if (bind(fdserver, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
+    fprintf(stderr, "[ERROR] Failed to bind socket: %m\n");
     exit(EXIT_FAILURE);
   }
 
-  if ((listen(listenfd, 10)) < 0) {
-    printf("Error while listening socket.");
+  if (listen(fdserver, 10) < 0) {
+    fprintf(stderr, "[ERROR] Failed to listen socket: %m\n");
     exit(EXIT_FAILURE);
   }
 
@@ -123,11 +126,16 @@ int main(void) {
   while (1) {
     printf("Waiting for connection on port %d\n", SERVER_PORT);
     fflush(stdout);
-    connfd = accept(listenfd, NULL, NULL);
+    fdclient = accept(fdserver, NULL, NULL);
+
+    if (!fdclient) {
+      fprintf(stderr, "[ERROR] Failed to connect: %m\n");
+      exit(EXIT_FAILURE);
+    }
 
     memset(recvline, 0, MAX_LINE);
 
-    while ((n = read(connfd, recvline, MAX_LINE - 1)) > 0) {
+    while ((n = read(fdclient, recvline, MAX_LINE - 1)) > 0) {
       printf((char *)recvline);
       if (recvline[n - 1] == '\n') {
         break;
@@ -136,7 +144,7 @@ int main(void) {
     }
 
     if (n < 0) {
-      printf("Error reading message");
+      fprintf(stderr, "[ERROR] Failed to read message: %m\n");
       exit(EXIT_FAILURE);
     }
 
@@ -146,7 +154,7 @@ int main(void) {
 
     char *pghtml = str_replace(pgtemp, "{{ count }}", numstr);
     snprintf((char *)buff, sizeof(buff), "%s\r\n\r\n%s", resheader, pghtml);
-    write(connfd, (char *)buff, strlen((char *)buff));
-    close(connfd);
+    write(fdclient, (char *)buff, strlen((char *)buff));
+    close(fdclient);
   }
 }
