@@ -1,12 +1,12 @@
 #include <arpa/inet.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <netdb.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/uio.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -15,6 +15,8 @@
 
 #define SERVER_PORT 3000
 #define MAX_LINE 4096
+#define MAX_URL_LENGTH 256
+#define EXPOSED_FOLDER "public"
 
 char *read_file(char *file_path) {
   FILE *file = fopen(file_path, "r");
@@ -59,7 +61,7 @@ char *str_replace(char *orig, char *rep, char *with) {
 
   // count the number of replacements needed
   ins = orig;
-  for (count = 0; tmp = strstr(ins, rep); ++count) {
+  for (count = 0; (tmp = strstr(ins, rep)); ++count) {
     ins = tmp + len_rep;
   }
 
@@ -88,12 +90,11 @@ char *str_replace(char *orig, char *rep, char *with) {
 int main(void) {
   int fdserver;
   int fdclient;
-  int n;
   const char *resheader = ""
                           "HTTP/1.1 200 OK\n"
                           "Server: serverfromscratch\n"
                           "Content-Type: text/html\n";
-  char *pgtemp = read_file("./index.html");
+  char *pgtemp = read_file("./public/index.html");
 
   struct sockaddr_in servaddr;
   uint8_t buff[MAX_LINE + 1];
@@ -135,17 +136,27 @@ int main(void) {
 
     memset(recvline, 0, MAX_LINE);
 
-    while ((n = read(fdclient, recvline, MAX_LINE - 1)) > 0) {
-      printf((char *)recvline);
-      if (recvline[n - 1] == '\n') {
-        break;
-      }
-      memset(recvline, 0, MAX_LINE);
-    }
+    read(fdclient, recvline, MAX_LINE - 1);
+    printf((char *)recvline);
 
-    if (n < 0) {
-      fprintf(stderr, "[ERROR] Failed to read message: %m\n");
-      exit(EXIT_FAILURE);
+    char *found = strchr((char *)recvline, '/');
+    if (found) {
+      char *pathend = strchr(found, ' ');
+
+      if (pathend) {
+        int len = pathend - found;
+
+        static char urlpath[MAX_URL_LENGTH];
+
+        if (len  + strlen(EXPOSED_FOLDER) < MAX_URL_LENGTH) {
+          strcpy(urlpath, "./"EXPOSED_FOLDER);
+          strncat(urlpath, found, len);
+          printf("%s\n", urlpath);
+        }
+        else {
+          fprintf(stderr, "[ERROR] URL with length %d is not allowed", len);
+        }
+      }
     }
 
     visited++;
