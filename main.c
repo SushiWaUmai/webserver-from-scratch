@@ -16,6 +16,7 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <unistd.h>
+#include <dirent.h>
 
 #define SERVER_PORT 3000
 #define MAX_LINE 4096
@@ -161,6 +162,15 @@ int main(void) {
           printf("%s\n", uri);
 
           int statuscode = 200;
+
+          // check if uri is a directory
+          DIR *dir = opendir(uri);
+          if (dir) {
+            if(uri[strlen(uri) - 1] != '/')
+              strcat(uri, "/");
+
+            strcat(uri, "index.html");
+          }
 
           if (stat(uri, &sbuf) < 0) {
             statuscode = 404;
