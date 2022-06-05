@@ -64,6 +64,7 @@ int main(void) {
   struct sockaddr_in servaddr;
   char recvline[MAX_LINE + 1];
 
+  // create server socket
   fdserver = socket(AF_INET, SOCK_STREAM, 0);
 
   if (!fdserver) {
@@ -71,6 +72,7 @@ int main(void) {
     exit(EXIT_FAILURE);
   }
 
+  // update server addr properties
   bzero(&servaddr, sizeof(servaddr));
   servaddr.sin_family = AF_INET;
   servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -86,10 +88,21 @@ int main(void) {
     exit(EXIT_FAILURE);
   }
 
+  printf("Waiting for connection on port %d\n", SERVER_PORT);
+
   while (1) {
-    printf("Waiting for connection on port %d\n", SERVER_PORT);
     fflush(stdout);
-    fdclient = accept(fdserver, NULL, NULL);
+    struct sockaddr clientaddr;
+    socklen_t clientaddr_len;
+
+    fdclient = accept(fdserver, &clientaddr, &clientaddr_len);
+
+    // if it is ipv4
+    if (clientaddr.sa_family == AF_INET) {
+      struct sockaddr_in *addrin = (struct sockaddr_in*)&clientaddr;
+      char *ip = inet_ntoa(addrin->sin_addr);
+      printf("Incoming request from %s\n", ip);
+    }
 
     if (!fdclient) {
       fprintf(stderr, "[ERROR] Failed to connect: %m\n");
