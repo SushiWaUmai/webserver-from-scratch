@@ -94,12 +94,12 @@ char *str_replace(char *orig, char *rep, char *with) {
 int main(void) {
   int fdserver;
   int fdclient;
-  char *pgtemp = read_file("./public/index.html");
 
   char method[MAX_PROP_LEN];
   char version[MAX_PROP_LEN];
   char uri[MAX_PROP_LEN];
 
+  struct stat sbuf;
   struct sockaddr_in servaddr;
   char recvline[MAX_LINE + 1];
 
@@ -160,21 +160,29 @@ int main(void) {
           strncat(uri, found, len);
           printf("%s\n", uri);
 
-          visited++;
-          char numstr[32];
-          sprintf(numstr, "%d", visited);
-          char *pghtml = str_replace(pgtemp, "{{ count }}", numstr);
-
           int statuscode = 200;
+
+          if (stat(uri, &sbuf) < 0) {
+            statuscode = 404;
+            fprintf(stderr, "[ERROR] 404 File %s does not exist\n", uri);
+            memset(uri, 0, MAX_PROP_LEN);
+            strcpy(uri, "./public/404.html");
+          }
 
           fprintf(stream, "HTTP/1.1 %d OK\n", statuscode);
           fprintf(stream, "Server: serverfromscratch\n");
           fprintf(stream, "Content-Type: text/html\n");
           fprintf(stream, "\r\n\r\n");
-          fprintf(stream, "%s", pghtml);
           fflush(stream);
+
+          int fd = open(uri, O_RDONLY);
+          void *p = mmap(0, sbuf.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+          fwrite(p, 1, sbuf.st_size, stream);
+          munmap(p, sbuf.st_size);
+
+          fclose(stream);
         } else {
-          fprintf(stderr, "[ERROR] URL with length %d is not allowed", len);
+          fprintf(stderr, "[ERROR] URL with length %d is not allowed\n", len);
         }
       }
     }
