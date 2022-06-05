@@ -1,21 +1,25 @@
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <netdb.h>
+#include <netinet/in.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/uio.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <sys/uio.h>
 #include <unistd.h>
 
 #define SERVER_PORT 3000
 #define MAX_LINE 4096
-#define MAX_URL_LENGTH 256
+#define MAX_PROP_LEN 256
 #define EXPOSED_FOLDER "public"
 
 char *read_file(char *file_path) {
@@ -90,15 +94,14 @@ char *str_replace(char *orig, char *rep, char *with) {
 int main(void) {
   int fdserver;
   int fdclient;
-  const char *resheader = ""
-                          "HTTP/1.1 200 OK\n"
-                          "Server: serverfromscratch\n"
-                          "Content-Type: text/html\n";
   char *pgtemp = read_file("./public/index.html");
 
+  char method[MAX_PROP_LEN];
+  char version[MAX_PROP_LEN];
+  char uri[MAX_PROP_LEN];
+
   struct sockaddr_in servaddr;
-  uint8_t buff[MAX_LINE + 1];
-  uint8_t recvline[MAX_LINE + 1];
+  char recvline[MAX_LINE + 1];
 
   fdserver = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -134,38 +137,48 @@ int main(void) {
       exit(EXIT_FAILURE);
     }
 
+    FILE *stream = fdopen(fdclient, "r+");
+    if (!stream) {
+      fprintf(stderr, "[ERROR] fdopen: %m\n");
+      exit(EXIT_FAILURE);
+    }
+
     memset(recvline, 0, MAX_LINE);
 
-    read(fdclient, recvline, MAX_LINE - 1);
-    printf((char *)recvline);
+    fgets(recvline, MAX_LINE - 1, stream);
+    sscanf(recvline, "%s %s %s\n", method, uri, version);
 
-    char *found = strchr((char *)recvline, '/');
+    char *found = strchr(recvline, '/');
     if (found) {
       char *pathend = strchr(found, ' ');
 
       if (pathend) {
         int len = pathend - found;
 
-        static char urlpath[MAX_URL_LENGTH];
+        if (len + strlen(EXPOSED_FOLDER) < MAX_PROP_LEN) {
+          strcpy(uri, "./" EXPOSED_FOLDER);
+          strncat(uri, found, len);
+          printf("%s\n", uri);
 
-        if (len  + strlen(EXPOSED_FOLDER) < MAX_URL_LENGTH) {
-          strcpy(urlpath, "./"EXPOSED_FOLDER);
-          strncat(urlpath, found, len);
-          printf("%s\n", urlpath);
-        }
-        else {
+          visited++;
+          char numstr[32];
+          sprintf(numstr, "%d", visited);
+          char *pghtml = str_replace(pgtemp, "{{ count }}", numstr);
+
+          int statuscode = 200;
+
+          fprintf(stream, "HTTP/1.1 %d OK\n", statuscode);
+          fprintf(stream, "Server: serverfromscratch\n");
+          fprintf(stream, "Content-Type: text/html\n");
+          fprintf(stream, "\r\n\r\n");
+          fprintf(stream, "%s", pghtml);
+          fflush(stream);
+        } else {
           fprintf(stderr, "[ERROR] URL with length %d is not allowed", len);
         }
       }
     }
 
-    visited++;
-    char numstr[32];
-    sprintf(numstr, "%d", visited);
-
-    char *pghtml = str_replace(pgtemp, "{{ count }}", numstr);
-    snprintf((char *)buff, sizeof(buff), "%s\r\n\r\n%s", resheader, pghtml);
-    write(fdclient, (char *)buff, strlen((char *)buff));
     close(fdclient);
   }
 }
