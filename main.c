@@ -23,6 +23,34 @@
 #define MAX_PROP_LEN 256
 #define EXPOSED_FOLDER "public"
 
+typedef struct {
+  char *file_ext;
+  char *file_type;
+} filetype_t;
+
+// TODO: Load these types from a csv file
+const filetype_t filetypes[] = {
+    {".html", "text/html"},     {".css", "text/css"},
+    {".js", "text/javascript"}, {".apng", "image/apng"},
+    {".avif", "image/avif"},    {".gif", "image/gif"},
+    {".jpg", "image/jpeg"},     {".jpeg", "image/jpeg"},
+    {".png", "image/png"},      {".svg", "image/svg+xml"},
+    {".webp", "image/webp"},    {".wav", "audio/wav"},
+    {".ogg", "audio/ogg"},      {".mp4", "video/mp4"}};
+
+const int filetype_len = sizeof(filetypes) / sizeof(filetype_t);
+
+int get_filetype(char *filename, char *filetype) {
+  int i;
+  for (i = 0; i < filetype_len; i++) {
+    if (strstr(filename, filetypes[i].file_ext)) {
+      strcpy(filetype, filetypes[i].file_type);
+      return 1;
+    }
+  }
+  return 0;
+}
+
 // Parts stolen from https://www.youtube.com/watch?v=esXw4bdaZkc
 int main(void) {
   int fdserver;
@@ -121,10 +149,18 @@ int main(void) {
         exit(EXIT_FAILURE);
       }
 
+      // check content type
+      static char content_type[MAX_PROP_LEN];
+      if (!get_filetype(moduri, content_type)) {
+        fprintf(stderr, "[ERROR] Unknown filetype %s\n", moduri);
+        strcpy(content_type, "text/html");
+      }
+
       fprintf(stream, "HTTP/1.1 %d OK\n", statuscode);
       fprintf(stream, "Server: serverfromscratch\n");
-      fprintf(stream, "Content-Type: text/html\n");
-      fprintf(stream, "\r\n\r\n");
+      fprintf(stream, "Content-length: %d\n", (int)sbuf.st_size);
+      fprintf(stream, "Content-Type: %s\n", content_type);
+      fprintf(stream, "\r\n");
       fflush(stream);
 
       int fd = open(moduri, O_RDONLY);
