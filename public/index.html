@@ -3,13 +3,64 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#13181E" />
+
     <link rel="icon" href="Sushi.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              roboto: ["Roboto Slab", "sans-serif"],
+            },
+            colors: {
+              black: "#13181E",
+              darkred: "#62262B",
+              red: "#A21E35",
+              lightblue: "#A2A7C3",
+              white: "#F5FEE9"
+            }
+          }
+        }
+      }
+    </script>
+    <style type="text/tailwindcss">
+      @import url("https://fonts.googleapis.com/css2?family=Roboto+Slab&display=swap");
+
+      html {
+        @apply scroll-smooth;
+      }
+
+      body {
+        @apply bg-black font-roboto text-lg text-white;
+      }
+      
+      a {
+        @apply cursor-pointer;
+      }
+    </style>
+
     <title>Hello C Webserver</title>
   </head>
   <body>
-    <h1>Webserver from scratch</h1>
-    <p>This is a simple webserver written in C.</p>
-    <img src="Sushi.png">
+    <nav class="flex justify-between p-4 bg-darkred">
+      <div>
+        <a href="/">Home</a>
+      </div>
+      <div class="flex gap-x-3">
+        <a href="/test">Test</a>
+        <a href="/hello">Hello</a>
+        <a href="/404">404</a>
+      </div>
+    </nav>
+    <div class="p-4">
+      <h1 class="text-3xl">Webserver from scratch</h1>
+      <hr>
+      <br>
+      <p>This is a simple webserver written in C.</p>
+      
+      <img src="Sushi.png">
+    </div>
   </body>
 </html>
