@@ -3,7 +3,7 @@ A simple webserver written from scratch using C.
 
 Note: this library uses POSIX specific libraries such as `<unistd.h>`.
 Therefore this project can only be compiled using a unix-like operating systems.
-It is also possible ot compile it on windows using [mingw](https://www.mingw-w64.org/).
+It is also possible to compile it on windows using [mingw](https://www.mingw-w64.org/).
 
 ## Credits
 - [`C Programming in Linux Tutorial #098 - A Simple Web Server Program`](https://www.youtube.com/watch?v=Q1bHO4VbUck) by ShellWave
